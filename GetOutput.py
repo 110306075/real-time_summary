@@ -1,57 +1,48 @@
-import pyaudio
+import pyaudiowpatch as pyaudio
 import wave
 
-chunk = 1024  # Record in chunks of 1024 samples
-sample_format = pyaudio.paInt16  # 16 bits per sample
-channels = 2
-fs = 44100  # Record at 44100 samples per second
-seconds = 5
-filename = "output.wav"
+# Configuration for the recording
+FORMAT = pyaudio.paInt16  # 16-bit audio format
+CHANNELS = 2              # Stereo
+RATE = 48000            # Sampling rate (44.1 kHz)
+CHUNK = 1024              # Number of frames per buffer
+RECORD_SECONDS = 10       # Duration of the recording
+OUTPUT_FILENAME = "output.wav"  # Output file
 
-p = pyaudio.PyAudio()  # Create an interface to PortAudio
+def record_audio():
+    """Record audio from the default speakers using WASAPI loopback."""
+    # Initialize PyAudio
+    with pyaudio.PyAudio() as p:
+        # Get the default WASAPI loopback device
+        loopback_device = p.get_default_wasapi_loopback()
+        print(loopback_device)
 
-#Select Device
-print ( "Available devices:\n")
-for i in range(0, p.get_device_count()):
-    info = p.get_device_info_by_index(i)
-    print ( str(info["index"]) +  ": \t %s \n \t %s \n" % (info["name"], p.get_host_api_info_by_index(info["hostApi"])["name"]))
-    pass
+        # Open the audio stream
+        with p.open(format=FORMAT,
+                    channels=CHANNELS,
+                    rate=RATE,
+                    input=True,
+                    frames_per_buffer=CHUNK,
+                    input_device_index=loopback_device['index']) as stream:
+            print("Recording...")
+            frames = []
 
-#ToDo change to your device ID
-device_id = 1
-device_info = p.get_device_info_by_index(device_id)
-channels = device_info["maxInputChannels"] if (device_info["maxOutputChannels"] < device_info["maxInputChannels"]) else device_info["maxOutputChannels"]
-# https://people.csail.mit.edu/hubert/pyaudio/docs/#pyaudio.Stream.__init__
-stream = p.open(format=sample_format,
-                channels=channels,
-                rate=int(device_info["defaultSampleRate"]),
-                input=True,
-                frames_per_buffer=chunk,
-                input_device_index=device_info["index"],
-                as_loopback=True
-                )
+            # Record audio in chunks
+            for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+                data = stream.read(CHUNK)
+                frames.append(data)
 
-frames = []  # Initialize array to store frames
+            print("Recording finished.")
 
-print('\nRecording', device_id, '...\n')
+    # Save the recorded audio to a file
+    with wave.open(OUTPUT_FILENAME, 'wb') as wf:
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(p.get_sample_size(FORMAT))
+        wf.setframerate(RATE)
+        wf.writeframes(b''.join(frames))
 
-# Store data in chunks for 3 seconds
-for i in range(0, int(fs / chunk * seconds)):
-    data = stream.read(chunk)
-    frames.append(data)
+    print(f"Audio recorded and saved as {OUTPUT_FILENAME}")
 
-# Stop and close the stream 
-stream.stop_stream()
-stream.close()
-# Terminate the PortAudio interface
-p.terminate()
+if __name__ == "__main__":
+    record_audio()
 
-print('Finished recording')
-
-# Save the recorded data as a WAV file
-wf = wave.open(filename, 'wb')
-wf.setnchannels(channels)
-wf.setsampwidth(p.get_sample_size(sample_format))
-wf.setframerate(fs)
-wf.writeframes(b''.join(frames))
-wf.close()
