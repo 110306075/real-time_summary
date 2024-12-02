@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 # Initialize PyAudio and Whisper model
 audio = pyaudio.PyAudio()
+
 model = whisper.load_model("medium")
 print('model loaded')
 time.sleep(10)
